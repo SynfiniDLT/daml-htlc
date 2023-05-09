@@ -15,11 +15,13 @@ First, the dependencies must be downloaded by running:
 The daml package can then be built using:
 
 ```bash
-daml build --project-root model/main
+cd model/main
+daml build
 ```
 
 And the tests can be run using:
 
 ```bash
-daml test --project-root model/main
+cd model/test
+daml test
 ```
