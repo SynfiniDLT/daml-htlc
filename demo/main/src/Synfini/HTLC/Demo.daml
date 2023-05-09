@@ -1,3 +1,6 @@
+-- Copyright (c) 2023 ASX Operations Pty Ltd. All rights reserved.
+-- SPDX-License-Identifier: Apache-2.0
+
 module Synfini.HTLC.Demo where
 
 import qualified DA.Map as Map
@@ -13,6 +16,7 @@ import qualified Daml.Finance.Interface.Holding.Transferable as Transferable
 import Daml.Finance.Interface.Types.Common.Types
 import qualified Daml.Finance.Interface.Util.Disclosure as Disclosure
 import qualified Daml.Finance.Holding.Fungible as Fungible
+import qualified Daml.Finance.Holding.NonFungible as NonFungible
 import Daml.Script
 import Synfini.HTLC
 
@@ -23,6 +27,7 @@ setupParty name = do
   createUser (User userId (Some party)) [CanActAs party]
   pure party
 
+-- Creates some account and holdings so we can try putting them into a HTLC using the navigator
 init : Script ()
 init = do
   alice <- setupParty "alice"
@@ -31,51 +36,94 @@ init = do
   issuer <- setupParty "issuer"
   custodian <- setupParty "custodian"
   let allParties = Set.fromList [alice, bob, depository, issuer, custodian]
-      aliceAccount = AccountKey with
+      aliceFungibleAccount = AccountKey with
         custodian
         owner = alice
-        id = Id "alice@custodian"
-      bobAccount = AccountKey with
+        id = Id "stablecoin:alice@custodian"
+      bobFungibleAccount = AccountKey with
         custodian
         owner = bob
-        id = Id "bob@custodian"
-  holdingFactoryCid <- submit issuer $
+        id = Id "stablecoin:bob@custodian"
+      aliceNonFungibleAccount = AccountKey with
+        custodian
+        owner = alice
+        id = Id "nft:alice@custodian"
+      bobNonFungibleAccount = AccountKey with
+        custodian
+        owner = bob
+        id = Id "nft:bob@custodian"
+  fungibleHoldingFactoryCid <- submit issuer $
     createCmd Fungible.Factory with
+      provider = issuer
+      observers = Map.fromList [("HTLC", allParties)]
+  nonFungibleHoldingFactoryCid <- submit issuer $
+    createCmd NonFungible.Factory with
       provider = issuer
       observers = Map.fromList [("HTLC", allParties)]
   accountFactoryCid <- submit depository $
     createCmd Account.Factory with
       provider = depository
       observers = Map.fromList [("HTLC", allParties)]
-  aliceAccountCid <- submitMulti [alice, custodian] [] $
+  aliceFungibleAccountCid <- submitMulti [alice, custodian] [] $
     exerciseCmd @AccountFactory.F (toInterfaceContractId accountFactoryCid) AccountFactory.Create with
-      account = aliceAccount
-      holdingFactoryCid = toInterfaceContractId holdingFactoryCid
+      account = aliceFungibleAccount
+      holdingFactoryCid = toInterfaceContractId fungibleHoldingFactoryCid
       controllers = Account.Controllers with
         outgoing = Set.empty
         incoming = Set.empty
-      description = "Alice's account"
+      description = "Alice's stablecoin account"
       observers = Map.fromList [("HTLC", allParties)]
   submitMulti [bob, custodian] [] $
     exerciseCmd @AccountFactory.F (toInterfaceContractId accountFactoryCid) AccountFactory.Create with
-      account = bobAccount
-      holdingFactoryCid = toInterfaceContractId holdingFactoryCid
+      account = bobFungibleAccount
+      holdingFactoryCid = toInterfaceContractId fungibleHoldingFactoryCid
       controllers = Account.Controllers with
         outgoing = Set.empty
         incoming = Set.empty
-      description = "Bob's account"
+      description = "Bob's stablecoin account"
       observers = Map.fromList [("HTLC", allParties)]
-  holdingCid <- submit custodian $
-    exerciseCmd aliceAccountCid Account.Credit with
+  submitMulti [alice, custodian] [] $
+    exerciseCmd @AccountFactory.F (toInterfaceContractId accountFactoryCid) AccountFactory.Create with
+      account = aliceNonFungibleAccount
+      holdingFactoryCid = toInterfaceContractId nonFungibleHoldingFactoryCid
+      controllers = Account.Controllers with
+        outgoing = Set.empty
+        incoming = Set.empty
+      description = "Alice's nft account"
+      observers = Map.fromList [("HTLC", allParties)]
+  bobNonFungibleAccountCid <- submitMulti [bob, custodian] [] $
+    exerciseCmd @AccountFactory.F (toInterfaceContractId accountFactoryCid) AccountFactory.Create with
+      account = bobNonFungibleAccount
+      holdingFactoryCid = toInterfaceContractId nonFungibleHoldingFactoryCid
+      controllers = Account.Controllers with
+        outgoing = Set.empty
+        incoming = Set.empty
+      description = "Bob's nft account"
+      observers = Map.fromList [("HTLC", allParties)]
+  fungibleHoldingCid <- submit custodian $
+    exerciseCmd aliceFungibleAccountCid Account.Credit with
       quantity = Quantity with
         unit = InstrumentKey with
           depository
           issuer
-          id = Id "CoinX"
+          id = Id "Stable AUD"
           version = "0"
         amount = 1.0
   submit alice $
-    exerciseCmd @Disclosure.I (toInterfaceContractId holdingCid) Disclosure.AddObservers with
+    exerciseCmd @Disclosure.I (toInterfaceContractId fungibleHoldingCid) Disclosure.AddObservers with
       disclosers = Set.fromList [alice]
+      observersToAdd = ("HTLC", allParties)
+  nonFungibleHoldingCid <- submit custodian $
+    exerciseCmd bobNonFungibleAccountCid Account.Credit with
+      quantity = Quantity with
+        unit = InstrumentKey with
+          depository
+          issuer
+          id = Id "0xABCDEF..."
+          version = "0"
+        amount = 1.0
+  submit bob $
+    exerciseCmd @Disclosure.I (toInterfaceContractId nonFungibleHoldingCid) Disclosure.AddObservers with
+      disclosers = Set.fromList [bob]
       observersToAdd = ("HTLC", allParties)
   pure ()

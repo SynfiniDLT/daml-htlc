@@ -1,4 +1,8 @@
 # daml-htlc
+
+    Copyright (c) 2023, ASX Operations Pty Ltd. All rights reserved.
+    SPDX-License-Identifier: Apache-2.0
+
 Hashed timelock contract written in Daml.
 
 # Building and testing
