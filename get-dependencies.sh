@@ -12,7 +12,7 @@ mkdir .lib
 
 # Get the dependency list
 echo "Downloading the list of dependencies"
-version=0.0.1
+version=0.0.2
 curl -L# \
   -H 'Cache-Control: no-cache, no-store' \
   -o .lib/${version}.conf \
