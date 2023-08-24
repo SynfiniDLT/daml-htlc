@@ -3,7 +3,7 @@
 
 sdk-version: 2.6.3
 name: daml-htlc-model
-version: 0.2.0 # This version must also be updated in the daml.yaml file in the test folder
+version: 0.2.0 # This version must also be updated in the dependencies section of the daml.yaml file in the test folder
 source: src
 dependencies:
   - daml-prim
